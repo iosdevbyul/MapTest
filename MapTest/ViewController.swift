@@ -230,10 +230,6 @@ class ViewController: UIViewController, CLLocationManagerDelegate, MKMapViewDele
     }
     
     func setDataForDrawRoute() -> MKDirections.Request {
-        
-
-        
-        
         let startingLocation = MKPlacemark(coordinate: originPoint.coordinate)
         let destinationLocation = MKPlacemark(coordinate: destinationPoint.coordinate)
         
