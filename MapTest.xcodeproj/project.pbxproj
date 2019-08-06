@@ -12,6 +12,7 @@
 		1C06E1BE22F0BB9F001639CA /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 1C06E1BC22F0BB9F001639CA /* Main.storyboard */; };
 		1C06E1C022F0BBAD001639CA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1C06E1BF22F0BBAD001639CA /* Assets.xcassets */; };
 		1C06E1C322F0BBAD001639CA /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 1C06E1C122F0BBAD001639CA /* LaunchScreen.storyboard */; };
+		1C07461422F37B5200C7847A /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 1C07461322F37B5200C7847A /* GoogleService-Info.plist */; };
 		1C16CEF622F1114F006B3A04 /* Podfile in Resources */ = {isa = PBXBuildFile; fileRef = 1C16CEF522F1114F006B3A04 /* Podfile */; };
 		1C16CF1622F12F4E006B3A04 /* APIResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C16CF1522F12F4E006B3A04 /* APIResponse.swift */; };
 		A19632DFC579641E4202B643 /* libPods-MapTest.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5C70687F3ECC6570B2E27AAD /* libPods-MapTest.a */; };
@@ -25,6 +26,7 @@
 		1C06E1BF22F0BBAD001639CA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1C06E1C222F0BBAD001639CA /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		1C06E1C422F0BBAD001639CA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		1C07461322F37B5200C7847A /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		1C16CEF522F1114F006B3A04 /* Podfile */ = {isa = PBXFileReference; lastKnownFileType = text; path = Podfile; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.ruby; };
 		1C16CF1522F12F4E006B3A04 /* APIResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIResponse.swift; sourceTree = "<group>"; };
 		5C70687F3ECC6570B2E27AAD /* libPods-MapTest.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-MapTest.a"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -48,6 +50,7 @@
 			isa = PBXGroup;
 			children = (
 				1C16CEF522F1114F006B3A04 /* Podfile */,
+				1C07461322F37B5200C7847A /* GoogleService-Info.plist */,
 				1C06E1B722F0BB9F001639CA /* MapTest */,
 				1C06E1B622F0BB9F001639CA /* Products */,
 				D483F704E98EBE28C708B87F /* Pods */,
@@ -156,6 +159,7 @@
 			files = (
 				1C06E1C322F0BBAD001639CA /* LaunchScreen.storyboard in Resources */,
 				1C06E1C022F0BBAD001639CA /* Assets.xcassets in Resources */,
+				1C07461422F37B5200C7847A /* GoogleService-Info.plist in Resources */,
 				1C16CEF622F1114F006B3A04 /* Podfile in Resources */,
 				1C06E1BE22F0BB9F001639CA /* Main.storyboard in Resources */,
 			);

@@ -11,12 +11,15 @@ import MapKit
 import CoreLocation
 import GoogleMaps
 import GooglePlaces
+import Firebase
 
-class ViewController: UIViewController, CLLocationManagerDelegate, MKMapViewDelegate {
-    
+class ViewController: UIViewController, CLLocationManagerDelegate, MKMapViewDelegate, GMSMapViewDelegate, UITextFieldDelegate, UITableViewDelegate, UITableViewDataSource {
+    //Latitude: 43.6544, longitude: -79.3828 //Eaton Centre
     
     // Google Maps API Key
     let apiKey = "AIzaSyBOhv23avprd-POQZAO-zCnYwFKfV8FqX0"//"AIzaSyAj8DEFdCP652-ZLqtd-2g6x3nH1Lx37e0"
+    
+    var googleMaps: GMSMapView?
     
     // UI
     let mapView = MKMapView()
@@ -26,6 +29,15 @@ class ViewController: UIViewController, CLLocationManagerDelegate, MKMapViewDele
     let originButton = UIButton()
     let submitButton = UIButton()
     let chooseButton = UIButton()
+
+    let sampleButton = UIButton()
+    
+    var searchingTextField = UITextField()
+    
+    var searchingTableView = UITableView()
+    let identifierForTableViewCell: String = "searchingCell"
+    
+    var keyboardHeight: CGFloat = 0
 
     // Map
     let manager: CLLocationManager = CLLocationManager()
@@ -39,28 +51,94 @@ class ViewController: UIViewController, CLLocationManagerDelegate, MKMapViewDele
     var originStreetName: String = ""
     var destinationStreetName: String = ""
     
+    var marker = GMSMarker()
+    
+    // DB
+    var db: Firestore!
+    var storeList: [String:[String:Any]] = [:]
+    var copiedStoreList: [String] = []
+    var selectedStore: String = ""
+
+    //camera(withLatitude: 43.6544, longitude: -79.3828, zoom: 20.0) //Eaton Centre
+    var currentLocation: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 43.6544, longitude: -79.3828)
+
+    
     //MARK: - viewDidLoad
     override func viewDidLoad() {
         super.viewDidLoad()
-        // Do any additional setup after loading the view, typically from a nib.
 
-        setupMapView()
         checkLocationService()
-        setupViewForPath()
-        createIndicator()
+
+        setDB()
+        getCollection()
+
+        setTextField()
+        setTableView()
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardWillAppear),
+            name: UIResponder.keyboardWillShowNotification,
+            object: nil
+        )
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardWillDisappear),
+            name: UIResponder.keyboardWillHideNotification,
+            object: nil
+        )
     }
+
+    func setGoogleMaps() {
+        googleMaps = GMSMapView(frame: CGRect(x: 0, y: self.view.bounds.size.height * 0.2, width: self.view.bounds.size.width, height: self.view.bounds.size.height * 0.7))
+        var camera = GMSCameraPosition.camera(withLatitude: 43.6544, longitude: -79.3828, zoom: 20.0)
+        
+        self.googleMaps?.delegate = self
+        self.googleMaps?.isMyLocationEnabled = true
+        self.googleMaps?.settings.myLocationButton = true
+        self.googleMaps?.settings.compassButton = false
+
+        self.googleMaps?.isIndoorEnabled = true
+        self.googleMaps?.settings.indoorPicker = true
+//        self.googleMaps?.settings.rotateGestures = false
+//        self.googleMaps?.settings.setAllGesturesEnabled(false)
+//        self.googleMaps?.settings.consumesGesturesInView = true
+//        self.googleMaps?.setMinZoom(16, maxZoom: 20)
+//        self.googleMaps?.animate(toViewingAngle: -20)
+//        self.googleMaps?.isBuildingsEnabled = false
+//        self.googleMaps?.settings.zoomGestures = false
+//        self.googleMaps?.settings.scrollGestures = false
+
+        guard let googleMaps = self.googleMaps else {
+            return
+        }
+        self.view.addSubview(googleMaps)
+        
+        if let location = manager.location?.coordinate {
+            currentLocation = location
+            camera = GMSCameraPosition.camera(withLatitude: location.latitude, longitude: location.longitude, zoom: 16.0)
+        }
+        googleMaps.camera = camera
+    }
+
     
-    //MARK: - Set up UIs and Components
-    func setupMapView() {
-        // make room for a View named container
-        mapView.frame = CGRect(x: 0, y: 160, width: self.view.frame.width, height: self.view.frame.height - 160)
-        self.view.addSubview(mapView)           // add mapView on the view originally provided
-        mapView.delegate = self                 // assign its delegate
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        let location = locations.last
+        
+        let camera = GMSCameraPosition.camera(withLatitude: (location?.coordinate.latitude)!, longitude: (location?.coordinate.longitude)!, zoom: 17.0)
+        
+        guard let googleMaps = googleMaps else {
+            return
+        }
+        googleMaps.animate(to: camera)
+        
+        //Finally stop updating location otherwise it will come again and again in this delegate
+        self.manager.stopUpdatingLocation()
     }
     
     func checkLocationService() {
         if CLLocationManager.locationServicesEnabled() {    // to check a status of a service for location
-            setLocationManager()
             checkAuthorization()
         } else {
             // display alert to the user
@@ -70,114 +148,258 @@ class ViewController: UIViewController, CLLocationManagerDelegate, MKMapViewDele
     func setLocationManager() {
         manager.delegate = self                             // assign its delegate
         manager.desiredAccuracy = kCLLocationAccuracyBest   // set accuracy
+        manager.startUpdatingLocation()
     }
     
-    func setupViewForPath() {
-        let container = UIView(frame: CGRect(x: 0, y: 0, width: self.view.frame.width, height: 160))
-        
-        container.backgroundColor = .white
-        self.view.addSubview(container)
-        
-        originButton.frame = CGRect(x: 20, y: 40, width: container.frame.width - 40, height: 20)
-        originButton.backgroundColor = .black
-        originButton.setTitle("Starting point", for: .normal)
-        originButton.tintColor = .white
-        originButton.addTarget(self, action: #selector(chooseOriginLocation), for: .touchUpInside)
-        container.addSubview(originButton)
-        
-        destinationButton.frame = CGRect(x: 20, y: 80, width: container.frame.width - 40, height: 20)
-        destinationButton.backgroundColor = .black
-        destinationButton.setTitle("Destination point", for: .normal)
-        destinationButton.tintColor = .white
-        destinationButton.addTarget(self, action: #selector(chooseDestinationLocation), for: .touchUpInside)
-        
-        container.addSubview(destinationButton)
-        
-        submitButton.frame = CGRect(x: 20, y: 120, width: (self.view.frame.width - 40)/2, height: 30)
-        submitButton.setTitle("Get the Path", for: .normal)
-        submitButton.addTarget(self, action: #selector(clickGetPathButton), for: .touchUpInside)
-        submitButton.backgroundColor = .gray
-        submitButton.isEnabled = false
-        
-        chooseButton.frame = CGRect(x: submitButton.frame.origin.x + submitButton.frame.width + 10, y: 120, width: (self.view.frame.width - 60)/2, height: 30)
-        chooseButton.setTitle("Reset", for: .normal)
-        chooseButton.addTarget(self, action: #selector(clickResetButton), for: .touchUpInside)
-        chooseButton.backgroundColor = .black
-        
-        container.addSubview(submitButton)
-        container.addSubview(chooseButton)
+    //MARK: - Firebase - Get DB
+    private func setDB() {
+        let settings = FirestoreSettings()
+        Firestore.firestore().settings = settings
+        db = Firestore.firestore()
     }
     
-    @objc func clickGetPathButton(sender: UIButton!) {
-        print("Get Path!")
-        self.indicator.isHidden = true
-        getPath()
-        drawPath()
+    private func getCollection() {
+        db.collection("eatonCentre").getDocuments() { (querySnapshot, err) in
+            if let err = err {
+                print("Error getting documents: \(err)")
+            } else {
+                for document in querySnapshot!.documents {
+                    print("\(document.documentID) => \(document.data())")
+                    let emp:[String:Any] = document.data()
+                    self.storeList[document.documentID] = emp
+
+                }
+            }
+        }
     }
     
-    @objc func clickResetButton(sender: UIButton!) {
-        self.indicator.isHidden = true
+    //MARK: - Create and Manage TextField
+    func setTextField() {
+        searchingTextField.frame = CGRect(x: 10, y: 30, width: self.view.bounds.size.width-20, height: 50)
+        searchingTextField.placeholder = "Store name"
+        searchingTextField.layer.cornerRadius = 15.0
+        searchingTextField.layer.borderWidth = 0.1
+        searchingTextField.layer.borderColor = UIColor.lightGray.cgColor
+        searchingTextField.delegate = self
+        searchingTextField.returnKeyType = .done
+        searchingTextField.textAlignment = .center
+        searchingTextField.clearButtonMode = .always
+        searchingTextField.clearButtonMode = .whileEditing
+        self.view.addSubview(searchingTextField)
         
-        originButton.setTitle("Starting point", for: .normal)
-        destinationButton.setTitle("Destination point", for: .normal)
-        
-        submitButton.backgroundColor = .gray
-        submitButton.isEnabled = false
-        chooseButton.setTitle("Reset", for: .normal)
-        isOriginButtonClicked = false
-        
-        originStreetName = ""
-        destinationStreetName = ""
-    }
-    
-    @objc func chooseOriginLocation(sender: UIButton!) {
-        self.indicator.isHidden = false
-        isOriginButtonClicked = true
-        
-    }
-    
-    @objc func chooseDestinationLocation(sender: UIButton!) {
-        self.indicator.isHidden = false
-        isOriginButtonClicked = false
-    }
-    
-    func createIndicator() {
-        self.indicator.frame = CGRect(x: self.view.center.x-5, y: self.view.center.y-5, width: 10, height: 10)
-        self.view.addSubview(self.indicator)
-        self.indicator.backgroundColor = .black
-        self.indicator.isHidden = true
+        searchingTextField.addTarget(self, action: #selector(typeRecords(_ :)), for: .editingChanged)
+
     }
 
-    //MARK: - Get Information from Google for path
-    func getPath() {
+    func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+        if textField.text == "" {
+            textField.resignFirstResponder()
+            searchingTableView.isHidden = true
+            
+        }else {
+            searchingTableView.isHidden = false
+        }
+        
+        return true
+    }
+    
+    @objc func typeRecords(_ textField: UITextField) {
+        marker.map = nil
+        
+        searchingTableView.isHidden = false
+        
+        self.copiedStoreList.removeAll()
+        
+        if textField.text?.count != 0 {
+            for store in storeList.keys {
+                if let storeToSearch = textField.text{
+                    let range = store.lowercased().range(of: storeToSearch, options: .caseInsensitive, range: nil, locale: nil)
+                    if range != nil {
+                        self.copiedStoreList.append(store)
+                    }
+                }
+            }
+        }
+        searchingTableView.reloadData()
+    }
+    
+    //MARK: - Create and Manage TableView
+    func setTableView() {
+        searchingTableView.frame = CGRect(x: 0, y: 80, width: self.view.bounds.size.width, height: self.view.bounds.size.height-80)
+        
+        searchingTableView.delegate = self
+        searchingTableView.dataSource = self
+        
+        searchingTableView.register(UITableViewCell.self, forCellReuseIdentifier: identifierForTableViewCell)
 
-        let originStreetNameString = originStreetName
-        let newOriginStreetNameString = originStreetNameString.replacingOccurrences(of: " ", with: "+")
+        searchingTableView.alpha = 0.9
         
-        let destinationStreetNameString = destinationStreetName
-        let newDestinationStreetNameString = destinationStreetNameString.replacingOccurrences(of: " ", with: "+")
+        self.view.addSubview(searchingTableView)
+        searchingTableView.isHidden = true
+    }
+    
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return self.copiedStoreList.count
+    }
+    
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        guard let cell = tableView.dequeueReusableCell(withIdentifier: identifierForTableViewCell) else {
+            return UITableViewCell()
+        }
+
+        cell.textLabel?.text = copiedStoreList[indexPath.row]
+        return cell
+    }
+    
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        marker.map = nil
         
-        let urlString = "https://maps.googleapis.com/maps/api/directions/json?origin=\(newOriginStreetNameString)&destination=\(newDestinationStreetNameString)&mode=walking&key="+apiKey
+        tableView.deselectRow(at: indexPath, animated: true)
+        selectedStore = copiedStoreList[indexPath.row]
+        print(selectedStore)
+        guard let dic = storeList[selectedStore] else {
+            return
+        }
+        guard let dic2: Any = dic["place_id"] else {
+            return
+        }
+        
+        searchingTextField.text = selectedStore
+        
+        getPath(currentLocation, dic2)
+        
+        //lat, lon
+        guard let lat: Any = dic["lat"] else {
+            return
+        }
+        
+        guard let lon: Any = dic["lon"] else {
+            return
+        }
+        
+        addMarker(lat, lon)
+    }
+    
+    func addMarker(_ lat: Any, _ lon: Any) {
+        
+        let latitudeStr = String(describing: lat)
+        guard let latitude = Double(latitudeStr) else {
+            return
+        }
+        
+        let longitudeStr = String(describing: lon)
+        guard let longitude = Double(longitudeStr) else {
+            return
+        }
+        
+        let position = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        marker = GMSMarker(position: position)
+        marker.title = selectedStore
+        //image download url
+        //https://www.flaticon.com/free-icon/bag_138271#term=shopping%20bag&page=1&position=8
+        marker.icon = UIImage(named: "bag")
+        marker.map = googleMaps
+        
+        setCamera(latitude,longitude)
+    }
+    
+    func setCamera(_ lat: Double, _ lon: Double) {
+        let current = CLLocationCoordinate2D(latitude: currentLocation.latitude, longitude: currentLocation.longitude)
+        let destination = CLLocationCoordinate2D(latitude: lat,longitude: lon)
+        let bounds = GMSCoordinateBounds(coordinate: current, coordinate: destination)
+        
+        guard let googleMaps = googleMaps else {
+            return
+        }
+        
+        let camera = googleMaps.camera(for: bounds, insets: UIEdgeInsets())!
+        
+        
+        googleMaps.camera = camera
+    }
+    
+    //MARK: - Notification for the keyboard's action
+    @objc func keyboardWillAppear(_ notification: Notification) {
+        if let keyboardFrame: NSValue = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue {
+            let keyboardRectangle = keyboardFrame.cgRectValue
+            let keyboardHeight = keyboardRectangle.height
+            searchingTableView.frame.size.height = self.view.frame.height - (searchingTextField.frame.origin.y + searchingTextField.frame.size.height + keyboardHeight)
+        }
+    }
+    
+    @objc func keyboardWillDisappear(_ notification: Notification) {
+        searchingTableView.frame.size.height = self.view.bounds.size.height - 80
+    }
+
+    //MARK: - Get Information from Google Maps API for path
+    func getPath(_ current: CLLocationCoordinate2D, _ place_id: Any) {
+        
+        let placeId: String = String(describing: place_id)
+        
+//////////Example - requesting a direction to Google Maps API
+//        origin=24+Sussex+Drive+Ottawa+ON
+//        origin=41.43206,-81.38992
+//        origin=place_id:ChIJ3S-JXmauEmsRUcIaWtf4MzE
+//        let urlString = "https://maps.googleapis.com/maps/api/directions/json?origin=\(newOriginStreetNameString)&destination=\(newDestinationStreetNameString)&mode=walking&key="+apiKey
+
+        let urlString = "https://maps.googleapis.com/maps/api/directions/json?origin=\(current.latitude),\(current.longitude)&destination=place_id:\(placeId)&region=ca&mode=walking&key="+apiKey
 
         guard let url = URL(string: urlString) else {
             return
         }
+        
         let task = URLSession.shared.dataTask(with: url) { (data, response, error) in
-            if let error = error {
-                print("error: \(error)")
-            } else {
-                guard let data = data else {
-                    return
-                }
-                do {
-                    let apiResponse = try JSONDecoder().decode(APIResponse.self, from: data)
-                    self.datas = apiResponse
-                } catch(let err) {
-                    print("ERR : \n \(err.localizedDescription)")
-                }
+            guard error == nil else {
+                print(error!.localizedDescription)
+                return
             }
+            
+            guard let data = data else {
+                return
+            }
+
+            guard let jsonResult = try? JSONSerialization.jsonObject(with: data, options: .allowFragments) as? [String: Any], let jsonResponse = jsonResult else {
+                print("error in JSONSerialization")
+                return
+            }
+            
+            guard let routes = jsonResponse["routes"] as? [Any] else {
+                return
+            }
+                    
+            guard let route = routes[0] as? [String: Any] else {
+                return
+            }
+            
+            guard let overview_polyline = route["overview_polyline"] as? [String: Any] else {
+                return
+            }
+            
+            guard let polyLineString = overview_polyline["points"] as? String else {
+                return
+            }
+            
+            //Call this method to draw path on map
+            self.drawPath(from: polyLineString)
+            }
+        
+        
+
+            task.resume()
+    }
+    
+    func drawPath(from polyStr: String){
+        let path = GMSPath(fromEncodedPath: polyStr)
+        let polyline = GMSPolyline(path: path)
+        polyline.strokeWidth = 1.0
+        polyline.strokeColor = UIColor.black
+        polyline.map = googleMaps
+        
+        DispatchQueue.main.async {
+            self.searchingTableView.isHidden = true
+            self.searchingTextField.resignFirstResponder()
         }
-        task.resume()
+
     }
 
     //MARK: - Check Authorization for using location and set user's current location
@@ -195,130 +417,14 @@ class ViewController: UIViewController, CLLocationManagerDelegate, MKMapViewDele
                 manager.requestWhenInUseAuthorization()
             case .authorizedWhenInUse :                     // the user agree to use location service while using the app
                 mapView.showsUserLocation = true
-                centerViewOnUserLocation()
+                setGoogleMaps()
                 break
             case .authorizedAlways :                        // we always ask for the using location
                                                             // while using the app so it wiil be not used but we need it
                 mapView.showsUserLocation = true            // because the user can changed the status at Settings
-                centerViewOnUserLocation()
+                setGoogleMaps()
                 break
         }
     }
-    
-    //Display current location & get which floor the user is staying
-    func centerViewOnUserLocation() {
-        if let location = manager.location?.coordinate {
-            let region = MKCoordinateRegion.init(center: location, latitudinalMeters: 500, longitudinalMeters: 500)
-            mapView.setRegion(region, animated: true)
-            if let floor: CLFloor = manager.location?.floor {
-                print("floor : \(floor.level)") //2146959360
-            }
-        }
-    }
-
-    //MARK: - Draw Path Methods
-    func drawPath() {
-        let request = setDataForDrawRoute()
-        let directions = MKDirections(request: request)
-        resetMapView(withNew: directions)
-        directions.calculate { [unowned self] (response, error) in
-        guard let response = response else { return }
-        for route in response.routes {
-            self.mapView.addOverlay(route.polyline)
-            self.mapView.setVisibleMapRect(route.polyline.boundingMapRect, animated: true)
-            }} 
-    }
-    
-    func setDataForDrawRoute() -> MKDirections.Request {
-        let startingLocation = MKPlacemark(coordinate: originPoint.coordinate)
-        let destinationLocation = MKPlacemark(coordinate: destinationPoint.coordinate)
-        
-        let request = MKDirections.Request()
-        request.source = MKMapItem(placemark: startingLocation)
-        request.destination = MKMapItem(placemark: destinationLocation)
-        request.transportType = .walking
-        request.requestsAlternateRoutes = true
-            
-        return request
-    }
-    
-    func resetMapView(withNew directions: MKDirections) {
-        mapView.removeOverlays(mapView.overlays)
-        dirArray.append(directions)
-        let _ = dirArray.map { $0.cancel() }
-    }
-
-    //MARK: - CLLocationManagerDelegate
-    func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
-        // to handle if the user changed the authorization 
-        checkAuthorization()
-    }
-    
-    //MARK: - MKMapViewDelegate
-    // MapKit will call this method when it realizes there is an MKOverlay object in the region that the map view is displaying.
-    func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
-        let renderer = MKPolylineRenderer(overlay: overlay as! MKPolyline)
-        renderer.strokeColor = .black
-        
-        return renderer
-    }
-
-    func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
-        if !(self.indicator.isHidden) {
-            let center = getLocation(mapView: mapView)
-            
-            let geoCode = CLGeocoder()
-        
-            geoCode.reverseGeocodeLocation(center) { (placemarks, err) in
-
-            if let error = err {
-                print(error.localizedDescription)
-                return
-            }
-            
-            guard let placemark = placemarks?.first else {
-                return
-            }
-            
-            let streetNum = placemark.subThoroughfare ?? ""
-            let streetName = placemark.thoroughfare ?? ""
-
-            DispatchQueue.main.async {
-                
-                if self.isOriginButtonClicked {
-                    self.originButton.setTitle("\(streetNum) \(streetName)", for: .normal)
-                    self.originStreetName = "\(streetNum) \(streetName)"
-                    self.originPoint = center
-                    if self.destinationStreetName != "" {
-                        self.submitButton.backgroundColor = .black
-                        self.submitButton.isEnabled = true
-                    } else {
-                        self.submitButton.backgroundColor = .gray
-                        self.submitButton.isEnabled = false
-                    }
-                } else {
-                    self.destinationButton.setTitle("\(streetNum) \(streetName)", for: .normal)
-                    self.destinationStreetName = "\(streetNum) \(streetName)"
-                    self.destinationPoint = center
-                    if self.originStreetName != "" {
-                        self.submitButton.backgroundColor = .black
-                        self.submitButton.isEnabled = true
-                    } else {
-                        self.submitButton.backgroundColor = .gray
-                        self.submitButton.isEnabled = false
-                    }
-                }
-            }
-        }
-        }
-    }
-    
-    func getLocation(mapView: MKMapView) -> CLLocation {
-        let latitude = mapView.centerCoordinate.latitude
-        let longitude  = mapView.centerCoordinate.longitude
-        
-        return CLLocation(latitude: latitude, longitude: longitude)
-    }
-    
 }
 
